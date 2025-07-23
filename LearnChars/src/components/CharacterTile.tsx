@@ -15,30 +15,29 @@ export const CharacterTile: React.FC<CharacterTileProps> = ({
   onMove,
   id 
 }) => {
-  const position = React.useRef(new Animated.ValueXY(initialPosition)).current;
-  const [absolutePosition, setAbsolutePosition] = React.useState(initialPosition);
+  const [position, setPosition] = React.useState(initialPosition);
+  const startPosition = React.useRef({ x: 0, y: 0 });
 
   const onGestureEvent = (event: any) => {
-    const { translationX, translationY } = event.nativeEvent;
-    const newPosition = {
-      x: absolutePosition.x + translationX,
-      y: absolutePosition.y + translationY
-    };
-    position.setValue(newPosition);
-    onMove?.(newPosition);
+    if (event.nativeEvent.state === State.ACTIVE) {
+      const newPosition = {
+        x: startPosition.current.x + event.nativeEvent.translationX,
+        y: startPosition.current.y + event.nativeEvent.translationY
+      };
+      setPosition(newPosition);
+      onMove?.(newPosition);
+    }
   };
 
   const onHandlerStateChange = (event: any) => {
-    if (event.nativeEvent.oldState === State.ACTIVE) {
-      const { translationX, translationY } = event.nativeEvent;
-      const newPosition = {
-        x: absolutePosition.x + translationX,
-        y: absolutePosition.y + translationY
-      };
-      setAbsolutePosition(newPosition);
-      position.setValue(newPosition);
+    if (event.nativeEvent.state === State.BEGAN) {
+      startPosition.current = position;
     }
   };
+
+  React.useEffect(() => {
+    setPosition(initialPosition);
+  }, [initialPosition]);
 
   return (
     <PanGestureHandler
@@ -51,7 +50,7 @@ export const CharacterTile: React.FC<CharacterTileProps> = ({
           {
             position: 'absolute',
             left: position.x,
-            top: position.y,
+            top: position.y
           },
         ]}
       >
@@ -77,6 +76,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    borderWidth: 2,
+    borderColor: '#ddd',
   },
   character: {
     fontSize: 40,

@@ -20,32 +20,50 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ characters }) => {
   const [canvasLayout, setCanvasLayout] = React.useState({ width: 0, height: 0 });
   const [tilePositions, setTilePositions] = React.useState<TilePosition[]>([]);
   
-  React.useEffect(() => {
-    if (canvasLayout.width > 0) {
-      // Initialize tile positions
-      const initialPositions = characters.map((char, index) => ({
-        id: `${char}-${index}`,
-        position: getRandomPosition(),
-        character: char
-      }));
-      setTilePositions(initialPositions);
-    }
-  }, [canvasLayout.width, characters]);
-
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
-    setCanvasLayout({ width, height });
+    
+    // Only update if dimensions actually changed
+    if (width !== canvasLayout.width || height !== canvasLayout.height) {
+      setCanvasLayout({ width, height });
+      
+      // Initialize positions in a grid layout
+      const tilesPerRow = Math.ceil(Math.sqrt(characters.length));
+      const spacing = TILE_SIZE + 20; // 20px gap between tiles
+      const startX = (width - (tilesPerRow * spacing)) / 2;
+      const startY = (height - (Math.ceil(characters.length / tilesPerRow) * spacing)) / 2;
+      
+      const initialPositions = characters.map((char, index) => {
+        const row = Math.floor(index / tilesPerRow);
+        const col = index % tilesPerRow;
+        return {
+          id: `${char}-${index}`,
+          position: {
+            x: startX + (col * spacing),
+            y: startY + (row * spacing)
+          },
+          character: char
+        };
+      });
+      
+      setTilePositions(initialPositions);
+    }
   };
 
-  const getRandomPosition = () => ({
-    x: Math.random() * (canvasLayout.width - TILE_SIZE),
-    y: Math.random() * (canvasLayout.height - TILE_SIZE),
-  });
-
+  const SNAP_DISTANCE = 20; // Fixed distance in pixels
+  
   const checkCollision = (pos1: { x: number; y: number }, pos2: { x: number; y: number }) => {
-    const dx = pos1.x - pos2.x;
-    const dy = pos1.y - pos2.y;
-    return Math.sqrt(dx * dx + dy * dy) < COLLISION_THRESHOLD;
+    const dx = Math.abs(pos1.x - pos2.x);
+    const dy = Math.abs(pos1.y - pos2.y);
+    
+    // Check if tiles are close to being side by side
+    const isHorizontalSnap = Math.abs(dx - TILE_SIZE) < SNAP_DISTANCE && dy < SNAP_DISTANCE;
+    const isVerticalSnap = Math.abs(dy - TILE_SIZE) < SNAP_DISTANCE && dx < SNAP_DISTANCE;
+    
+    return {
+      isNear: isHorizontalSnap || isVerticalSnap,
+      direction: dy < dx ? 'horizontal' : 'vertical'
+    };
   };
 
   const onTileMove = (id: string, newPosition: { x: number; y: number }) => {
@@ -54,26 +72,39 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ characters }) => {
       const movingTileIndex = updatedPositions.findIndex(tile => tile.id === id);
       
       if (movingTileIndex === -1) return prevPositions;
+
+      let finalPosition = { ...newPosition };
       
+      // Check for collisions with other tiles
+      for (let i = 0; i < updatedPositions.length; i++) {
+        if (i === movingTileIndex) continue;
+        
+        const collision = checkCollision(newPosition, updatedPositions[i].position);
+        if (collision.isNear) {
+          const staticTilePos = updatedPositions[i].position;
+          
+          if (collision.direction === 'horizontal') {
+            finalPosition.y = staticTilePos.y;
+            // Snap to left or right
+            finalPosition.x = newPosition.x > staticTilePos.x ? 
+              staticTilePos.x + TILE_SIZE : 
+              staticTilePos.x - TILE_SIZE;
+          } else {
+            finalPosition.x = staticTilePos.x;
+            // Snap to top or bottom
+            finalPosition.y = newPosition.y > staticTilePos.y ? 
+              staticTilePos.y + TILE_SIZE : 
+              staticTilePos.y - TILE_SIZE;
+          }
+          break;
+        }
+      }
+
       // Update the moving tile's position
       updatedPositions[movingTileIndex] = {
         ...updatedPositions[movingTileIndex],
-        position: newPosition
+        position: finalPosition
       };
-
-      // Check for collisions with other tiles
-      updatedPositions.forEach((tile, index) => {
-        if (tile.id !== id && checkCollision(newPosition, tile.position)) {
-          // When tiles collide, snap them together
-          const snapPosition = {
-            x: (newPosition.x + tile.position.x) / 2,
-            y: (newPosition.y + tile.position.y) / 2
-          };
-          
-          updatedPositions[movingTileIndex].position = snapPosition;
-          updatedPositions[index].position = snapPosition;
-        }
-      });
 
       return updatedPositions;
     });
