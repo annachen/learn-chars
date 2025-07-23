@@ -6,6 +6,8 @@ interface CharacterTileProps {
   character: string;
   initialPosition?: { x: number; y: number };
   onMove?: (position: { x: number; y: number }) => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
   id: string;
 }
 
@@ -13,6 +15,8 @@ export const CharacterTile: React.FC<CharacterTileProps> = ({
   character, 
   initialPosition = { x: 0, y: 0 },
   onMove,
+  onDragStart,
+  onDragEnd,
   id 
 }) => {
   const [position, setPosition] = React.useState(initialPosition);
@@ -32,6 +36,9 @@ export const CharacterTile: React.FC<CharacterTileProps> = ({
   const onHandlerStateChange = (event: any) => {
     if (event.nativeEvent.state === State.BEGAN) {
       startPosition.current = position;
+      onDragStart?.();
+    } else if (event.nativeEvent.state === State.END) {
+      onDragEnd?.();
     }
   };
 
